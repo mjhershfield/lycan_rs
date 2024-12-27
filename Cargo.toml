@@ -1,0 +1,8 @@
+[package]
+name = "lycan_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ft60x_rs = { path = "crates/ft60x-rs" }
+rand = "0.8.5"
