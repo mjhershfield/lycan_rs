@@ -1,5 +1,5 @@
 use ft60x_rs::{Device, Pipe};
-use std::{io, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 fn main() {
     // Load bundled D3XX driver
@@ -36,20 +36,7 @@ fn main() {
     ftdi.set_timeout(Pipe::In0, Duration::from_millis(3000))
         .unwrap();
 
-    // let text_to_write = "Hello world! :)";
-    let stdin = io::stdin();
-    let mut text_to_write = String::new();
-    stdin.read_line(&mut text_to_write).unwrap();
-    text_to_write.pop();
-    for _ in 0..(3 - text_to_write.len() % 3) % 3 {
-        text_to_write.push('\0');
-    }
-    println!(
-        "Sending '{}' (padded to length {})",
-        text_to_write,
-        text_to_write.len()
-    );
-
+    let text_to_write = "Hello world! :)";
     let mut write_buf = [0x48, 0x49, 0x0a, 0x0c];
     let mut buf_ind: usize = 0;
     for character in text_to_write.as_bytes() {
@@ -70,41 +57,17 @@ fn main() {
 
     // Read data
     println!("Reading...");
-    let mut zero_counter = 0;
-    let mut completed = false;
-    let mut full_string = Vec::new();
-    while !completed {
-        let mut read_buf = [0u8; 64];
-        let mut read_amt = 0;
-        while read_amt == 0 {
-            match ftdi.read(Pipe::In0, read_buf.as_mut_slice(), Duration::from_secs(3)) {
-                Ok(res) => {
-                    read_amt = res;
-                    if read_amt != 0 {
-                        // println!("Read {} bytes: {:X?}", res, read_buf);
-                        zero_counter = 0;
-                    } else {
-                        zero_counter += 1;
-                        if zero_counter > 1000 {
-                            completed = true;
-                            break;
-                        }
-                    }
+    loop {
+        let mut read_buf = vec![0u8; 128];
+        match ftdi.read(Pipe::In0, read_buf.as_mut_slice(), Duration::from_secs(3)) {
+            Ok(res) => {
+                if res == 0 {
+                    println!("Read 0 bytes, returning!");
+                    return;
                 }
-                Err(e) => panic!("Error reading from In0: {}", e),
-            };
-        }
-
-        // Value has been read into the read_buf
-        full_string.extend_from_slice(&read_buf[0..read_amt]);
+                println!("Read {} bytes: {:X?}", res, read_buf);
+            }
+            Err(e) => panic!("Error reading from In0: {}", e),
+        };
     }
-
-    // Ghetto packet stripping
-    let mut keep_counter = 0;
-    full_string.retain(|_| {
-        keep_counter = (keep_counter + 1) % 4;
-        return keep_counter != 0;
-    });
-
-    println!("{}", String::from_utf8(full_string).unwrap());
 }
