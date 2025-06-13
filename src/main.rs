@@ -36,14 +36,14 @@ fn main() {
     ftdi.set_timeout(Pipe::In0, Duration::from_millis(3000))
         .unwrap();
 
-    // let text_to_write = "Hello world! :)";
+    let text_to_write = "Hello world! :)";
     let stdin = io::stdin();
     let mut text_to_write = String::new();
     stdin.read_line(&mut text_to_write).unwrap();
     text_to_write.pop();
-    for _ in 0..(3 - text_to_write.len() % 3) % 3 {
-        text_to_write.push('\0');
-    }
+    // for _ in 0..(3 - text_to_write.len() % 3) % 3 {
+    //     text_to_write.push('\0');
+    // }
     println!(
         "Sending '{}' (padded to length {})",
         text_to_write,
@@ -68,6 +68,18 @@ fn main() {
         }
     }
 
+    if buf_ind != 0 {
+        write_buf[3] = (buf_ind as u8) << 2;
+
+        // Read from input pipe, write to output pipe
+        match ftdi.write(Pipe::Out0, &write_buf, Duration::from_secs(3)) {
+            Ok(res) => println!("Wrote {} bytes: {:X?}", res, write_buf),
+            Err(e) => {
+                panic!("Error writing to Out0: {}", e)
+            }
+        }
+    }
+
     // Read data
     println!("Reading...");
     let mut zero_counter = 0;
@@ -81,7 +93,7 @@ fn main() {
                 Ok(res) => {
                     read_amt = res;
                     if read_amt != 0 {
-                        // println!("Read {} bytes: {:X?}", res, read_buf);
+                        println!("Read {} bytes: {:X?}", res, read_buf);
                         zero_counter = 0;
                     } else {
                         zero_counter += 1;
@@ -91,7 +103,10 @@ fn main() {
                         }
                     }
                 }
-                Err(e) => panic!("Error reading from In0: {}", e),
+                Err(_) => {
+                    completed = true;
+                    break;
+                }
             };
         }
 
@@ -106,5 +121,6 @@ fn main() {
         return keep_counter != 0;
     });
 
+    println!("Read data: ");
     println!("{}", String::from_utf8(full_string).unwrap());
 }
